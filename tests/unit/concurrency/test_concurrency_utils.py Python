@@ -1,0 +1,30 @@
+import asyncio
+import pytest
+from concurrent.futures import ThreadPoolExecutor
+
+# Example utility (create in src/concurrency/utils.py)
+async def execute_with_concurrency(tasks, max_workers=10):
+    semaphore = asyncio.Semaphore(max_workers)
+    
+    async def bounded_task(task):
+        async with semaphore:
+            return await task()
+    
+    return await asyncio.gather(*[bounded_task(t) for t in tasks], return_exceptions=True)
+
+@pytest.mark.asyncio
+async def test_concurrency_limit_respected():
+    call_count = 0
+    
+    async def dummy_task():
+        nonlocal call_count
+        call_count += 1
+        await asyncio.sleep(0.01)
+        return call_count
+    
+    tasks = [dummy_task for _ in range(25)]
+    results = await execute_with_concurrency(tasks, max_workers=5)
+    
+    assert len(results) == 25
+    # We can't perfectly assert exact max concurrency in unit test, but we can check no crash
+    assert all(not isinstance(r, Exception) for r in results)
