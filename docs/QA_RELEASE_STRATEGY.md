@@ -2,15 +2,12 @@
 ## Version 1.0 — April 2026
 **Living document** — update this file whenever we change testing policy or add new use cases.
 
-## 1. Core Philosophy (Nexla LLM Evaluation Best Practices)
+## 1. Core Philosophy
 
-We follow the key principles from Nexla’s “LLM Evaluation: Key Concepts & Best Practices”:
+We follow these foundational principles for LLM evaluation in production AI systems:
 
-> “LLM evaluation is a structured process that assesses an LLM’s performance across various tasks and capabilities… The goal is to validate whether it meets the requirements of a **specific use case**.”
-
-**Key Nexla principles we enforce:**
-- Evaluation must be **use-case focused** (not generic benchmarks).
-- We use **multiple metrics** together (never rely on one metric alone).
+- Evaluation must be **use-case focused** (tailored to our exact business problems).
+- We use **multiple metrics together** (never rely on one metric alone).
 - Every metric has a **minimum threshold** required for release.
 - Human review is still required for high-risk changes (we are not 100% automated yet).
 
@@ -56,9 +53,7 @@ A release is blocked if **any** use-case metric falls below its threshold.
 
 ## 4. Current LLM Metrics & Thresholds (we will implement one by one)
 
-We will add these metrics step-by-step (following Nexla recommendation to use multiple metrics).
-
-| Metric                  | Use Case                  | Threshold | Why it matters (Nexla)                  | Test file (future)                  |
+| Metric                  | Use Case                  | Threshold | Why it matters                          | Test file (future)                  |
 |-------------------------|---------------------------|-----------|-----------------------------------------|-------------------------------------|
 | Answer Relevancy        | All                       | ≥ 0.90    | Prevents off-topic or rambling answers  | tests/llm/relevancy/                |
 | Hallucination           | Revenue Analysis          | ≤ 0.05    | No invented numbers                     | tests/llm/hallucination/            |
@@ -82,5 +77,5 @@ We will add these metrics step-by-step (following Nexla recommendation to use mu
 - When we change a threshold → update Section 4 and the test code.
 - After every major release → review this file.
 
-**Last updated**: [Insert date when you commit]
-**Owner**: QA Engineer (you)
+**Last updated**: April 18, 2026  
+**Owner**: QA Engineer
