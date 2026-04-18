@@ -1,41 +1,86 @@
-# QA & Release Strategy for Enterprise AI Platform
-## Core Principle #1: Use-Case-Focused LLM Evaluation (Nexla Best Practice)
+# Enterprise QA & Release Strategy
+## Version 1.0 — April 2026
+**Living document** — update this file whenever we change testing policy or add new use cases.
 
-**Directly from Nexla LLM Evaluation Guide:**
-> "LLM evaluation must be done for a specific use case."
+## 1. Core Philosophy (Nexla LLM Evaluation Best Practices)
 
-### Why This Principle Exists
-- Generic benchmarks (MMLU, GLUE, HELM) only tell you the model is "smart".
-- Our platform requires the LLM to perform **autonomous execution** on revenue intelligence, data orchestration, and agent workflows.
-- A model that excels at creative writing can still hallucinate numbers or pick wrong tools — which would be catastrophic in enterprise software.
+We follow the key principles from Nexla’s “LLM Evaluation: Key Concepts & Best Practices”:
 
-### How We Apply This in Our QA Framework
-Every LLM test in `tests/llm/` **must** be tied to one of our defined use cases below.
+> “LLM evaluation is a structured process that assesses an LLM’s performance across various tasks and capabilities… The goal is to validate whether it meets the requirements of a **specific use case**.”
 
-### Our Specific Use Cases (Define Yours Here)
-1. **Revenue Analysis & Executive Summarization**  
-   - Input: Raw revenue data + user question  
-   - Expected: Accurate numbers, clear insights, actionable recommendations  
-   - Metrics we will enforce: Faithfulness (no hallucination), Answer Relevancy, Task Completion
+**Key Nexla principles we enforce:**
+- Evaluation must be **use-case focused** (not generic benchmarks).
+- We use **multiple metrics** together (never rely on one metric alone).
+- Every metric has a **minimum threshold** required for release.
+- Human review is still required for high-risk changes (we are not 100% automated yet).
 
-2. **Agent Tool Orchestration / Autonomous Execution**  
-   - Input: Business request  
-   - Expected: Correct tool selection + successful task completion  
-   - Metrics: Tool Correctness, Task Completion, JSON correctness (for tool outputs)
+## 2. Our Specific Use Cases (This is what makes our evaluation unique)
 
-3. **Structured Data Output (JSON mode)**  
-   - Input: Any request that needs machine-readable output  
-   - Expected: Valid JSON matching our schema  
-   - Metric: JSON Correctness
+All LLM tests in `tests/llm/` **must** map to one of these use cases:
 
-4. **Consistency in High-Stakes Queries**  
-   - Same input must produce statistically identical outputs across runs.
+### Use Case 1: Revenue Analysis & Executive Summarization
+- **Description**: User asks questions about revenue data. LLM must analyze, summarize, and recommend actions.
+- **Success criteria**:
+  - Numbers must be 100% faithful to source data (no hallucination).
+  - Output must be concise, actionable, and include clear recommendations.
+- **Metrics we will enforce**: Hallucination, Answer Relevancy, G-Eval (custom business criteria), Faithfulness.
 
-### Release Gates
-- PR → Only unit tests
-- Main branch → Full LLM evaluation using the metrics above
-- Release to production only if **all use-case metrics pass their thresholds**
+### Use Case 2: Agent Tool Orchestration / Autonomous Execution
+- **Description**: User gives a business goal. Agent must choose correct tools, call them in the right order, and complete the task.
+- **Success criteria**:
+  - Correct tool selection.
+  - Successful end-to-end task completion.
+  - Structured output (JSON) when required.
+- **Metrics we will enforce**: Tool Correctness, Task Completion, JSON Correctness.
 
-We will implement one metric per learning step (starting with Answer Relevancy in Step 4.2).
+### Use Case 3: Structured Data Output (JSON mode)
+- **Description**: Any request that must return machine-readable data for downstream systems.
+- **Success criteria**: Output must be valid JSON matching our exact schema.
+- **Metrics we will enforce**: JSON Correctness + Faithfulness.
 
-This document is the single source of truth for every release decision.
+### Use Case 4: Consistency & Reliability
+- **Description**: Same input must produce statistically similar outputs across multiple runs.
+- **Metrics we will enforce**: Consistency score (custom).
+
+## 3. Testing Pyramid & CI/CD Quality Gates
+
+| Stage                  | What runs                          | When it runs          | Must pass for next stage? | Thresholds defined in |
+|------------------------|------------------------------------|-----------------------|---------------------------|-----------------------|
+| Code Quality           | Unit tests, lint, type check       | Every PR              | Yes                       | tests/unit/           |
+| Feature + LLM Evals    | All LLM metrics + feature tests    | PR + main branch      | Yes                       | tests/llm/            |
+| UI/UX                  | Playwright visual + accessibility  | main branch only      | Yes                       | tests/ui_ux/          |
+| Release                | Canary / blue-green deployment     | Manual approval       | —                         | scripts/release/      |
+
+**LLM Evaluation Rule**:  
+A release is blocked if **any** use-case metric falls below its threshold.
+
+## 4. Current LLM Metrics & Thresholds (we will implement one by one)
+
+We will add these metrics step-by-step (following Nexla recommendation to use multiple metrics).
+
+| Metric                  | Use Case                  | Threshold | Why it matters (Nexla)                  | Test file (future)                  |
+|-------------------------|---------------------------|-----------|-----------------------------------------|-------------------------------------|
+| Answer Relevancy        | All                       | ≥ 0.90    | Prevents off-topic or rambling answers  | tests/llm/relevancy/                |
+| Hallucination           | Revenue Analysis          | ≤ 0.05    | No invented numbers                     | tests/llm/hallucination/            |
+| Faithfulness            | All                       | ≥ 0.95    | Answer must be grounded in context      | tests/llm/faithfulness/             |
+| Tool Correctness        | Agent Orchestration       | 1.0       | Agent must pick right tool              | tests/llm/agent/                    |
+| G-Eval (Custom)         | Revenue Analysis          | ≥ 0.85    | Business-specific quality (actionable?) | tests/llm/geval/                    |
+| JSON Correctness        | Structured Output         | 1.0       | Downstream systems must consume output  | tests/llm/json/                     |
+
+## 5. Release Process (High-Level Flow)
+
+1. Developer opens PR → Code quality gates run.
+2. PR merged to `main` → Full LLM evaluation runs automatically.
+3. All LLM metrics pass → UI/UX tests run.
+4. All tests pass → Manual approval (GitHub Environment) → Canary release to staging.
+5. Monitoring in staging (24h) → Production rollout (feature flags enabled).
+
+**Rollback policy**: Any production incident triggers immediate rollback + post-mortem that updates this strategy document.
+
+## 6. How to Update This Document
+- When we add a new use case → update Section 2.
+- When we change a threshold → update Section 4 and the test code.
+- After every major release → review this file.
+
+**Last updated**: [Insert date when you commit]
+**Owner**: QA Engineer (you)
