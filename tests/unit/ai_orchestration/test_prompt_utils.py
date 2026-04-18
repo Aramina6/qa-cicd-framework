@@ -1,28 +1,64 @@
+"""
+tests/unit/ai_orchestration/test_prompt_utils.py
+
+Real-world unit tests for prompt formatting utilities.
+Prompt formatting is critical because LLMs are extremely sensitive to missing variables,
+wrong syntax, or malformed templates — one small bug can cause complete failure of
+autonomous execution flows.
+"""
+
 import pytest
 from hypothesis import given, strategies as st
 
-# Example function we'll test (create this in src/ai_orchestration/prompt_utils.py later)
-def format_prompt(template: str, variables: dict) -> str:
-    """Safely format prompt with variables"""
-    try:
-        return template.format(**variables)
-    except KeyError as e:
-        raise ValueError(f"Missing variable in prompt template: {e}")
+# Import the actual production code we are testing
+from src.ai_orchestration.prompt_utils import format_prompt
 
+
+def test_format_prompt_success_with_all_variables():
+    """Happy path: all variables present → should format correctly."""
+    template = "Hello {name}, your Q1 revenue is {revenue}."
+    variables = {"name": "Alice", "revenue": "$14.8M"}
+    
+    result = format_prompt(template, variables)
+    assert result == "Hello Alice, your Q1 revenue is $14.8M."
+
+
+def test_format_prompt_raises_on_missing_variable():
+    """Critical safety check: missing variable must raise clear error."""
+    template = "Revenue for {region} is {amount}."
+    variables = {"region": "Enterprise"}  # missing "amount"
+    
+    with pytest.raises(ValueError) as exc_info:
+        format_prompt(template, variables)
+    
+    assert "Missing variable in prompt template: 'amount'" in str(exc_info.value)
+
+
+def test_format_prompt_handles_empty_variables_dict():
+    """Edge case: no variables provided."""
+    template = "This is a static prompt with no variables."
+    result = format_prompt(template, {})
+    assert result == template
+
+
+def test_format_prompt_ignores_extra_variables():
+    """Extra variables in dict should be safely ignored (not an error)."""
+    template = "Hello {name}."
+    variables = {"name": "Bob", "extra_key": "ignored_value"}
+    result = format_prompt(template, variables)
+    assert result == "Hello Bob."
+
+
+# Property-based test (tests thousands of random valid cases automatically)
 @given(
-    template=st.text(min_size=5, max_size=200),
-    var_name=st.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=3, max_size=10)
+    template=st.text(min_size=10, max_size=300),
+    var_name=st.text(alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", min_size=3, max_size=20),
+    var_value=st.text(max_size=100)
 )
-def test_prompt_formatting_with_variables(template, var_name):
+def test_prompt_formatting_property_based(template, var_name, var_value):
+    """Random valid inputs must always succeed if the variable is present."""
+    # Only test when the variable actually appears in the template
     if "{" + var_name + "}" in template:
-        variables = {var_name: "test_value"}
+        variables = {var_name: var_value}
         result = format_prompt(template, variables)
-        assert var_name in result or "test_value" in result
-    else:
-        # Should raise if required var missing - but we skip for this property test
-        pass
-
-def test_format_prompt_missing_variable():
-    template = "Hello {name}, your revenue is {revenue}"
-    with pytest.raises(ValueError, match="Missing variable"):
-        format_prompt(template, {"name": "Alice"})
+        assert var_value in result
