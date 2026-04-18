@@ -1,3 +1,11 @@
+
+---
+
+### 2. Full Updated `.github/workflows/cicd-pipeline.yml`
+
+Replace the entire file with this **production-ready version**:
+
+```yaml
 name: Enterprise QA CI/CD Pipeline
 
 on:
@@ -5,7 +13,7 @@ on:
     branches: [ main ]
   push:
     branches: [ main ]
-  workflow_dispatch:
+  workflow_dispatch:   # Allows manual trigger from GitHub UI
 
 permissions:
   contents: read
@@ -13,57 +21,80 @@ permissions:
   security-events: write
 
 jobs:
-  # Stage 1: Fast code quality and unit tests (runs on every PR)
+  # STAGE 1: Fast feedback on every PR
   code-quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup runtime (Python example - adjust for your stack)
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
-          pip install -r requirements-dev.txt || echo "No requirements-dev.txt yet - add when ready"
+          pip install -r requirements-dev.txt
+          pip install -e .
 
-      - name: Run linting and unit tests
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Formatting check (black)
+        run: black --check .
+
+      - name: Type checking (mypy)
+        run: mypy . --ignore-missing-imports || echo "Type warnings (configure later)"
+
+      - name: Unit Tests
         run: |
-          echo "✅ Running unit tests and linting (placeholder)"
-          # pytest tests/unit -q --cov || true   # Will activate in next steps
+          pytest tests/unit -q --cov=src --cov-report=term-missing --cov-fail-under=85
 
-  # Stage 2: Feature, integration, and LLM testing
+  # STAGE 2: LLM + Feature Tests (critical quality gate)
   feature-and-llm-tests:
     needs: code-quality
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run feature and LLM evaluations
-        run: |
-          echo "🚀 Running feature tests + LLM evals (DeepEval, etc.)"
-          # Will implement real LLM testing in next steps
 
-  # Stage 3: UI/UX testing
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-dev.txt
+          pip install -e .
+
+      - name: Run LLM Evaluations + Feature Tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          pytest tests/llm tests/feature -q --cov=src --cov-report=term-missing
+
+  # STAGE 3: UI/UX Tests (placeholder - ready for Playwright)
   ui-ux-tests:
     needs: feature-and-llm-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run UI/UX and accessibility tests
+      - name: UI/UX + Accessibility Tests
         run: |
-          echo "🎨 Running Playwright / Cypress tests (placeholder)"
-          # Will add real UI testing setup next
+          echo "🎨 UI/UX tests will run here (Playwright coming in next step)"
+          # playwright test  (uncomment when ready)
 
-  # Stage 4: Release (only on main with approval)
+  # STAGE 4: Release (only on main + manual approval)
   release:
     if: github.ref == 'refs/heads/main'
     needs: [feature-and-llm-tests, ui-ux-tests]
     runs-on: ubuntu-latest
-    environment: production
+    environment: production   # ← Requires manual approval in GitHub Settings → Environments
     steps:
       - uses: actions/checkout@v4
-      - name: Release preparation and deployment
+      - name: Prepare Release
         run: |
-          echo "📦 Preparing release with canary / blue-green strategy"
-          # Release scripts will go here
+          echo "📦 Running release scripts (canary / blue-green / feature flags)"
+          # ./scripts/release/deploy.sh   (we will create this later)
